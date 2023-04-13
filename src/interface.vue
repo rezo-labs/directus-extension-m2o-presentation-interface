@@ -44,7 +44,6 @@ export default defineComponent({
 	setup(props) {
 		const values = inject('values', ref<Record<string, any>>({}));
 		const value = ref(null);
-		const m2oPrimaryKey = ref<string | number | null>(null);
 
 		const relationsStore = useStores().useRelationsStore();
 		const fieldsStore = useStores().useFieldsStore();
@@ -59,9 +58,28 @@ export default defineComponent({
 		const primaryKeyField = computed(() => 
 			(fieldsStore.getPrimaryKeyFieldForCollection(relatedCollection.value) as Field | null)?.field || 'id'
 		);
-		const fieldMeta = computed(() =>
-			relatedCollection.value && fieldsStore.getField(relatedCollection.value, props.presentationField)
+		const fieldMeta = computed(() => {
+			if (relatedCollection.value) {
+				return (fieldsStore.getField(relatedCollection.value, props.presentationField) as Field | null);
+			}
+		});
+
+		const m2oValue = computed(() => values.value[props.m2oField]);
+		const isObject = computed(() => 
+			typeof m2oValue.value === 'object' && m2oValue.value !== null
 		);
+		const isPrimitive = computed(() => 
+			typeof m2oValue.value === 'string' || typeof m2oValue.value === 'number'
+		);
+
+		const m2oPrimaryKey = computed<string | number | null>(() => {
+			if (isObject.value) {
+				return m2oValue.value[primaryKeyField.value];
+			} else if (isPrimitive.value) {
+				return m2oValue.value;
+			}
+			return null;
+		});
 
 		const api = useApi();
 
@@ -72,22 +90,20 @@ export default defineComponent({
 		return { value, m2oPrimaryKey, fieldMeta };
 
 		async function getValue() {
-			if (values) {
-				const m2oValue = values.value[props.m2oField];
-				if (typeof m2oValue === 'object') {
-					m2oPrimaryKey.value = m2oValue[primaryKeyField.value];
-					return m2oValue[props.presentationField];
-				}
-				// Call API to get item data
-				else if (typeof m2oValue === 'string' || typeof m2oValue === 'number') {
-					m2oPrimaryKey.value = m2oValue;
-					const { data } = (await api.get(`/items/${relatedCollection.value}/${m2oValue}`, {
-						params: {
-							fields: [props.presentationField],
-						},
-					})).data;
-					value.value = data[props.presentationField];
-				}
+			if (isObject.value) {
+				value.value = m2oValue.value[props.presentationField];
+			}
+			// Call API to get item data
+			else if (isPrimitive.value) {
+				const { data } = (await api.get(`/items/${relatedCollection.value}/${m2oValue.value}`, {
+					params: {
+						fields: [props.presentationField],
+					},
+				})).data;
+				value.value = data[props.presentationField];
+			}
+			else {
+				value.value = null;
 			}
 		}
 	},
