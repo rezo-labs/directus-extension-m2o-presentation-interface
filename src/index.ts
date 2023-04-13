@@ -24,6 +24,17 @@ export default defineInterface({
 				interface: 'input',
 			},
 		},
+		{
+			field: 'errorMsg',
+			type: 'string',
+			name: 'Error Message',
+			meta: {
+				interface: 'system-input-translated-string',
+				options: {
+					placeholder: 'An error occurred while fetching the related item.',
+				},
+			},
+		},
 	],
 	types: ['alias'],
 	localTypes: ['presentation'],

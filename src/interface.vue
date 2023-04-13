@@ -1,13 +1,20 @@
 <template>
 	<div class="m2o-presentation">
+		<v-skeleton-loader v-if="loading" />
+
+		<v-notice v-else-if="error" type="info">
+			{{ errorMsg }}
+		</v-notice>
+
 		<component
 			:is="
 				fieldMeta.meta && fieldMeta.meta.interface
 					? `interface-${fieldMeta.meta.interface}`
 					: `interface-input`
 			"
-			v-if="fieldMeta"
+			v-else-if="fieldMeta"
 			v-bind="(fieldMeta.meta && fieldMeta.meta.options) || {}"
+			:autofocus="false"
 			:disabled="true"
 			:value="value"
 			:width="(fieldMeta.meta && fieldMeta.meta.width) || 'full'"
@@ -40,10 +47,16 @@ export default defineComponent({
 			type: String,
 			required: true,
 		},
+		errorMsg: {
+			type: String,
+			default: 'An error occurred while fetching the related item.',
+		},
 	},
 	setup(props) {
 		const values = inject('values', ref<Record<string, any>>({}));
 		const value = ref(null);
+		const loading = ref(false);
+		const error = ref(null);
 
 		const relationsStore = useStores().useRelationsStore();
 		const fieldsStore = useStores().useFieldsStore();
@@ -87,7 +100,7 @@ export default defineComponent({
 			getValue();
 		}, { immediate: true });
 
-		return { value, m2oPrimaryKey, fieldMeta };
+		return { value, loading, error, m2oPrimaryKey, fieldMeta };
 
 		async function getValue() {
 			if (isObject.value) {
@@ -95,12 +108,19 @@ export default defineComponent({
 			}
 			// Call API to get item data
 			else if (isPrimitive.value) {
-				const { data } = (await api.get(`/items/${relatedCollection.value}/${m2oValue.value}`, {
-					params: {
-						fields: [props.presentationField],
-					},
-				})).data;
-				value.value = data[props.presentationField];
+				loading.value = true;
+				try {
+					const { data } = (await api.get(`/items/${relatedCollection.value}/${m2oValue.value}`, {
+						params: {
+							fields: [props.presentationField],
+						},
+					})).data;
+					value.value = data[props.presentationField];
+				} catch (err) {
+					error.value = err;
+				} finally {
+					loading.value = false;
+				}
 			}
 			else {
 				value.value = null;
